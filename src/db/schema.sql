@@ -1,8 +1,13 @@
 -- Warehouse Tracker: raw data schema
+-- Mirrors the four source CSVs (PRD section 4). One table per source file,
+-- loaded as-is by the ingestion layer before any cleaning/joining happens.
+-- Joining these into a single combined table is out of scope for this PR
+-- (see PRD 6.2 / build order Week 3).
 
 PRAGMA foreign_keys = ON;
 
 -- station_id -> which workflow & shift handled that station.
+-- One row per station, so station_id is a natural primary key.
 CREATE TABLE IF NOT EXISTS workflow_reference (
     station_id      TEXT PRIMARY KEY,
     workflow_name   TEXT NOT NULL,
@@ -10,6 +15,8 @@ CREATE TABLE IF NOT EXISTS workflow_reference (
 );
 
 -- One row per order: how long it took to prep.
+-- order_id is treated as the primary key here since it is the first table
+-- an order appears in; packing_audits and complaints reference it.
 CREATE TABLE IF NOT EXISTS prep_logs (
     order_id        TEXT PRIMARY KEY,
     station_id      TEXT NOT NULL,
@@ -39,6 +46,7 @@ CREATE TABLE IF NOT EXISTS complaints (
 );
 
 -- Indexes to support the joins/aggregations planned for later PRs
+-- (combined table build in Week 3, complaint counts per workflow/station).
 CREATE INDEX IF NOT EXISTS idx_prep_logs_station       ON prep_logs (station_id);
 CREATE INDEX IF NOT EXISTS idx_packing_audits_order    ON packing_audits (order_id);
 CREATE INDEX IF NOT EXISTS idx_packing_audits_station  ON packing_audits (station_id);
