@@ -42,3 +42,8 @@ pip install -r requirements.txt
 ```bash
 pytest
 ```
+
+## Status
+
+This project runs entirely on generated mock data (see docs/mock_data.md) —
+there is no real warehouse data source. Raw-data schema is in place...
