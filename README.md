@@ -43,7 +43,28 @@ pip install -r requirements.txt
 pytest
 ```
 
+## Generating mock data
+
+Real warehouse export data isn't available for this project, so use the
+generator to populate `data/raw/` with realistic mock CSVs before running
+anything else:
+
+```bash
+python scripts/generate_mock_data.py
+```
+
+## Initializing the local database
+
+```bash
+python -m src.db.init_db
+```
+
+This creates `data/processed/warehouse.db` (gitignored) using the DDL in
+`src/db/schema.sql`. Safe to re-run — it won't drop existing data.
+
 ## Status
 
-This project runs entirely on generated mock data (see docs/mock_data.md) —
-there is no real warehouse data source. Raw-data schema is in place...
+This project runs entirely on generated mock data
+there is no real warehouse data source. Raw-data schema is in place
+(`workflow_reference`, `prep_logs`, `packing_audits`, `complaints`), and CI
+runs the test suite on every push/PR.
