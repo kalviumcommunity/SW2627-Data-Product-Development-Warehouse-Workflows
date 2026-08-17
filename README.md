@@ -4,8 +4,6 @@ Warehouse Workflow Failure Intelligence Platform — connects order prep time,
 packing accuracy, and delivery complaint data so operations leads can see
 which warehouse workflow is causing the most delivery failures.
 
-Built with Python, Pandas, SQL/SQLite, and Streamlit.
-
 ## Team Roles
 
 - **Backend** (ingestion, cleaning, joining, analytics, SQLite layer): this repo's `src/`
@@ -43,6 +41,23 @@ pip install -r requirements.txt
 pytest
 ```
 
+## Ingestion
+
+`src/ingestion/` reads and structurally validates each raw source before
+any cleaning or joining happens. Each reader checks that its
+expected columns are present, but does not clean or type-convert values —
+that's a separate concern.
+
+Implemented so far:
+
+```python
+from src.ingestion.prep_logs import read_prep_logs
+from src.ingestion.packing_audits import read_packing_audits
+
+prep_df = read_prep_logs("data/raw/prep_logs.csv")
+packing_df = read_packing_audits("data/raw/packing_audits.csv")
+```
+
 ## Generating mock data
 
 Real warehouse export data isn't available for this project, so use the
@@ -66,5 +81,6 @@ This creates `data/processed/warehouse.db` (gitignored) using the DDL in
 
 This project runs entirely on generated mock data
 there is no real warehouse data source. Raw-data schema is in place
-(`workflow_reference`, `prep_logs`, `packing_audits`, `complaints`), and CI
-runs the test suite on every push/PR.
+(`workflow_reference`, `prep_logs`, `packing_audits`, `complaints`), CI
+runs the test suite on every push/PR, and ingestion has two readers so far:
+`read_prep_logs()` and `read_packing_audits()`.
