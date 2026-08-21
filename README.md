@@ -48,18 +48,22 @@ any cleaning or joining happens. Each reader checks that its
 expected columns are present, but does not clean or type-convert values —
 that's a separate concern.
 
-Implemented so far — all four raw sources:
+Implemented so far — all four raw sources, plus a consolidated entry point:
 
 ```python
-from src.ingestion.prep_logs import read_prep_logs
-from src.ingestion.packing_audits import read_packing_audits
-from src.ingestion.complaints import read_complaints
-from src.ingestion.workflow_reference import read_workflow_reference
+from src.ingestion import read_all_sources
 
-prep_df = read_prep_logs("data/raw/prep_logs.csv")
-packing_df = read_packing_audits("data/raw/packing_audits.csv")
-complaints_df = read_complaints("data/raw/complaints.csv")
-workflow_df = read_workflow_reference("data/raw/workflow_reference.csv")
+sources = read_all_sources("data/raw")
+sources["prep_logs"]           # DataFrame
+sources["packing_audits"]      # DataFrame
+sources["complaints"]          # DataFrame
+sources["workflow_reference"]  # DataFrame
+```
+
+Individual readers are still available directly if needed:
+
+```python
+from src.ingestion import read_prep_logs, read_packing_audits, read_complaints, read_workflow_reference
 ```
 
 ## Generating mock data
@@ -87,6 +91,5 @@ This project runs entirely on generated mock data
 there is no real warehouse data source. Raw-data schema is in place
 (`workflow_reference`, `prep_logs`, `packing_audits`, `complaints`), CI
 runs the test suite on every push/PR, and the ingestion layer is complete
-with readers for all four raw sources: `read_prep_logs()`,
-`read_packing_audits()`, `read_complaints()`, and `read_workflow_reference()`.
-Next up: data cleaning and joining the four sources into one combined table.
+with readers for all four raw sources plus a consolidated
+`read_all_sources()` entry point.
