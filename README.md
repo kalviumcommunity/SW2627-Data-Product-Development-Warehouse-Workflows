@@ -73,18 +73,42 @@ ready. Cleaning never drops rows — it flags problems (e.g. a timestamp
 that couldn't be parsed) so later stages can decide how to handle them,
 rather than silently losing data.
 
-Implemented so far: `clean_prep_logs()`, which parses `prep_start`/
-`prep_end` into real datetimes and computes how long each order took to
-prep. Adds `prep_time_valid` (False if a timestamp was missing,
-unparseable, or `prep_end` came before `prep_start`) and
-`prep_duration_minutes` (NaN for flagged rows).
+Implemented so far:
+
+- `clean_prep_logs()` — parses timestamps, computes prep duration, flags
+  missing/malformed timestamps and duplicate `order_id`s
+- `clean_packing_audits()` — flags missing/unrecognized `accuracy_flag`
+  values via an `accuracy_valid` column
 
 ```python
-from src.ingestion import read_prep_logs
-from src.processing import clean_prep_logs
+from src.ingestion import read_prep_logs, read_packing_audits
+from src.processing import clean_prep_logs, clean_packing_audits
 
-raw_df = read_prep_logs("data/raw/prep_logs.csv")
-cleaned_df = clean_prep_logs(raw_df)
+prep_clean = clean_prep_logs(read_prep_logs("data/raw/prep_logs.csv"))
+packing_clean = clean_packing_audits(read_packing_audits("data/raw/packing_audits.csv"))
+```
+
+## Joining
+
+`src/processing/join_prep_and_packing.py` combines cleaned `prep_logs`
+and `packing_audits` into one order-level table. Expects already-cleaned
+inputs — joining and cleaning are separate concerns.
+
+Design notes:
+- Rows flagged as duplicate `order_id`s are excluded before joining
+  (only the first-seen row per order is kept), so a duplicate key
+  doesn't fan out and double-count that order.
+- It's a left join from `prep_logs` — every prepped order appears in the
+  result, even if it has no matching packing audit (shown as missing
+  values in the packing columns, not a dropped row).
+- Both sources have a `station_id` column. They should always agree, but
+  if they don't, that's surfaced via a `station_id_mismatch` flag rather
+  than silently picked one way.
+
+```python
+from src.processing import join_prep_and_packing
+
+joined = join_prep_and_packing(prep_clean, packing_clean)
 ```
 
 ## Generating mock data
@@ -113,5 +137,5 @@ there is no real warehouse data source. Raw-data schema is in place
 (`workflow_reference`, `prep_logs`, `packing_audits`, `complaints`), CI
 runs the test suite on every push/PR, the ingestion layer is complete
 with readers for all four raw sources plus a consolidated
-`read_all_sources()` entry point, and cleaning has started with
-`clean_prep_logs()`
+`read_all_sources()` entry point, and cleaning + the first join
+(`prep_logs` + `packing_audits`) are in place.
