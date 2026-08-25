@@ -66,6 +66,27 @@ Individual readers are still available directly if needed:
 from src.ingestion import read_prep_logs, read_packing_audits, read_complaints, read_workflow_reference
 ```
 
+## Cleaning
+
+`src/processing/` turns validated-but-raw data into something analysis-
+ready. Cleaning never drops rows — it flags problems (e.g. a timestamp
+that couldn't be parsed) so later stages can decide how to handle them,
+rather than silently losing data.
+
+Implemented so far: `clean_prep_logs()`, which parses `prep_start`/
+`prep_end` into real datetimes and computes how long each order took to
+prep. Adds `prep_time_valid` (False if a timestamp was missing,
+unparseable, or `prep_end` came before `prep_start`) and
+`prep_duration_minutes` (NaN for flagged rows).
+
+```python
+from src.ingestion import read_prep_logs
+from src.processing import clean_prep_logs
+
+raw_df = read_prep_logs("data/raw/prep_logs.csv")
+cleaned_df = clean_prep_logs(raw_df)
+```
+
 ## Generating mock data
 
 Real warehouse export data isn't available for this project, so use the
@@ -90,6 +111,7 @@ This creates `data/processed/warehouse.db` (gitignored) using the DDL in
 This project runs entirely on generated mock data
 there is no real warehouse data source. Raw-data schema is in place
 (`workflow_reference`, `prep_logs`, `packing_audits`, `complaints`), CI
-runs the test suite on every push/PR, and the ingestion layer is complete
+runs the test suite on every push/PR, the ingestion layer is complete
 with readers for all four raw sources plus a consolidated
-`read_all_sources()` entry point.
+`read_all_sources()` entry point, and cleaning has started with
+`clean_prep_logs()`
