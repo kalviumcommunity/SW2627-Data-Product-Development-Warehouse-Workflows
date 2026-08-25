@@ -111,6 +111,36 @@ from src.processing import join_prep_and_packing
 joined = join_prep_and_packing(prep_clean, packing_clean)
 ```
 
+## Full combined table
+
+`src/processing/build_combined_table.py` produces the final order-level
+table the analytics stage will query — `prep_logs` + `packing_audits`
+(joined above) with `workflow_reference` and `complaints` joined in on
+top.
+
+Design notes:
+- `complaints.csv` is one-row-per-complaint, so it's aggregated to one
+  row per order first (`aggregate_complaints_by_order()`) — orders with
+  no complaints get `complaint_count = 0` and `complaint_types = ""`,
+  not a missing value.
+- Joins to `workflow_reference` on the prep side's station (the
+  canonical one). A station with no match in `workflow_reference` (like
+  the orphaned station seeded in mock data) isn't an error — it's kept
+  and flagged via `workflow_found = False`.
+
+```python
+from src.ingestion import read_all_sources
+from src.processing import clean_prep_logs, clean_packing_audits, build_combined_table
+
+sources = read_all_sources("data/raw")
+prep_clean = clean_prep_logs(sources["prep_logs"])
+packing_clean = clean_packing_audits(sources["packing_audits"])
+
+combined = build_combined_table(
+    prep_clean, packing_clean, sources["complaints"], sources["workflow_reference"]
+)
+```
+
 ## Generating mock data
 
 Real warehouse export data isn't available for this project, so use the
@@ -137,5 +167,7 @@ there is no real warehouse data source. Raw-data schema is in place
 (`workflow_reference`, `prep_logs`, `packing_audits`, `complaints`), CI
 runs the test suite on every push/PR, the ingestion layer is complete
 with readers for all four raw sources plus a consolidated
-`read_all_sources()` entry point, and cleaning + the first join
-(`prep_logs` + `packing_audits`) are in place.
+`read_all_sources()` entry point, and the full data pipeline (ingest →
+clean → join all four sources) produces one combined order-level table
+via `build_combined_table()`. Next up: analytics — complaint counts and
+failure rate by workflow.
