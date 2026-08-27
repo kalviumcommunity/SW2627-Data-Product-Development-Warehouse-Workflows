@@ -5,8 +5,9 @@ import pandas as pd
 
 from src.processing.clean_packing_audits import clean_packing_audits
 
+# scripts/ isn't a package -- see tests/test_generate_mock_data.py for why.
 sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
-from generate_mock_data import build_packing_audits, build_prep_logs, build_workflow_reference
+from generate_mock_data import build_packing_audits, build_prep_logs, build_workflow_reference  # noqa: E402
 
 
 def _raw_packing_audits_df(rows: list[dict]) -> pd.DataFrame:
@@ -20,7 +21,7 @@ def test_correct_flag_is_valid():
 
     cleaned = clean_packing_audits(df)
 
-    assert cleaned.loc[0, "accuracy_valid"] == True
+    assert cleaned.loc[0, "accuracy_valid"] == True  # noqa: E712
 
 
 def test_incorrect_flag_is_valid():
@@ -40,18 +41,20 @@ def test_missing_flag_is_flagged_not_dropped():
 
     cleaned = clean_packing_audits(df)
 
-    assert len(cleaned) == 1
-    assert cleaned.loc[0, "accuracy_valid"] == False
+    assert len(cleaned) == 1  # row is kept
+    assert cleaned.loc[0, "accuracy_valid"] == False  # noqa: E712
 
 
 def test_unrecognized_flag_value_is_flagged():
+    # Defensive: any value other than the two expected ones should be
+    # treated the same as missing, not silently accepted.
     df = _raw_packing_audits_df([
         {"order_id": "ORD-1", "station_id": "STN-01", "accuracy_flag": "unknown"},
     ])
 
     cleaned = clean_packing_audits(df)
 
-    assert cleaned.loc[0, "accuracy_valid"] == False
+    assert cleaned.loc[0, "accuracy_valid"] == False  # noqa: E712
 
 
 def test_clean_packing_audits_does_not_mutate_input():
@@ -77,6 +80,6 @@ def test_clean_packing_audits_against_real_mock_data():
 
     cleaned = clean_packing_audits(df)
 
-    assert len(cleaned) == len(df)
-    assert (~cleaned["accuracy_valid"]).sum() > 0
-    assert cleaned["accuracy_valid"].sum() > 0
+    assert len(cleaned) == len(df)  # no rows dropped
+    assert (~cleaned["accuracy_valid"]).sum() > 0  # the seeded missing flags are caught
+    assert cleaned["accuracy_valid"].sum() > 0  # most still valid

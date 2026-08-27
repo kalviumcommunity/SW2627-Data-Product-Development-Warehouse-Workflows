@@ -141,6 +141,28 @@ combined = build_combined_table(
 )
 ```
 
+## Analytics
+
+`src/analytics/` turns the combined table into the metrics operations
+leads actually want: complaint counts and failure rate, by workflow.
+
+Implemented so far: `complaints_and_failure_rate_by_workflow()`.
+
+Design note: failure rate is defined as *orders with at least one
+complaint ÷ total orders* — not raw complaint count ÷ orders, since an
+order with two complaints is still one failed order, not two. Raw
+complaint count is still reported alongside for visibility. Orders with
+no workflow match are grouped into an explicit "Unknown" bucket rather
+than dropped.
+
+```python
+from src.analytics import complaints_and_failure_rate_by_workflow
+
+result = complaints_and_failure_rate_by_workflow(combined)
+# columns: workflow_name, total_orders, orders_with_complaint,
+#          total_complaints, failure_rate — sorted worst-first
+```
+
 ## Generating mock data
 
 Real warehouse export data isn't available for this project, so use the
@@ -165,9 +187,8 @@ This creates `data/processed/warehouse.db` (gitignored) using the DDL in
 This project runs entirely on generated mock data
 there is no real warehouse data source. Raw-data schema is in place
 (`workflow_reference`, `prep_logs`, `packing_audits`, `complaints`), CI
-runs the test suite on every push/PR, the ingestion layer is complete
-with readers for all four raw sources plus a consolidated
-`read_all_sources()` entry point, and the full data pipeline (ingest →
+runs the test suite on every push/PR, the full data pipeline (ingest →
 clean → join all four sources) produces one combined order-level table
-via `build_combined_table()`. Next up: analytics — complaint counts and
-failure rate by workflow.
+via `build_combined_table()`, and analytics now calculates failure rate
+by workflow via `complaints_and_failure_rate_by_workflow()`. Next up:
+the same breakdown by station, and exposing this for the dashboard.

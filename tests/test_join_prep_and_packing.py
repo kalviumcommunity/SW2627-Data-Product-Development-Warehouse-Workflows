@@ -7,8 +7,9 @@ from src.processing.clean_packing_audits import clean_packing_audits
 from src.processing.clean_prep_logs import clean_prep_logs
 from src.processing.join_prep_and_packing import join_prep_and_packing
 
+# scripts/ isn't a package -- see tests/test_generate_mock_data.py for why.
 sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
-from generate_mock_data import build_packing_audits, build_prep_logs, build_workflow_reference
+from generate_mock_data import build_packing_audits, build_prep_logs, build_workflow_reference  # noqa: E402
 
 
 def _prep_df(rows):
@@ -34,7 +35,7 @@ def test_basic_join_matches_rows_correctly():
     assert joined.loc[0, "order_id"] == "ORD-1"
     assert joined.loc[0, "accuracy_flag"] == "correct"
     assert joined.loc[0, "prep_duration_minutes"] == 20.0
-    assert joined.loc[0, "station_id_mismatch"] == False
+    assert joined.loc[0, "station_id_mismatch"] == False  # noqa: E712
 
 
 def test_join_excludes_duplicate_prep_rows():
@@ -50,6 +51,7 @@ def test_join_excludes_duplicate_prep_rows():
 
     joined = join_prep_and_packing(prep, packing)
 
+    # Only the canonical (first) prep row should appear in the join output.
     assert len(joined) == 1
     assert joined.loc[0, "prep_start"] == "2026-07-01T10:00:00"
 
@@ -59,11 +61,11 @@ def test_join_is_left_join_missing_packing_shows_as_nan():
         {"order_id": "ORD-1", "station_id": "STN-01",
          "prep_start": "2026-07-01T10:00:00", "prep_end": "2026-07-01T10:20:00"},
     ]))
-    packing = clean_packing_audits(_packing_df([]))
+    packing = clean_packing_audits(_packing_df([]))  # no packing audit at all
 
     joined = join_prep_and_packing(prep, packing)
 
-    assert len(joined) == 1
+    assert len(joined) == 1  # prep row is kept even with no matching audit
     assert pd.isna(joined.loc[0, "accuracy_flag"])
 
 
@@ -72,13 +74,14 @@ def test_join_flags_station_id_mismatch():
         {"order_id": "ORD-1", "station_id": "STN-01",
          "prep_start": "2026-07-01T10:00:00", "prep_end": "2026-07-01T10:20:00"},
     ]))
+    # Same order, but packing_audits disagrees about which station handled it.
     packing = clean_packing_audits(_packing_df([
         {"order_id": "ORD-1", "station_id": "STN-99", "accuracy_flag": "correct"},
     ]))
 
     joined = join_prep_and_packing(prep, packing)
 
-    assert joined.loc[0, "station_id_mismatch"] == True
+    assert joined.loc[0, "station_id_mismatch"] == True  # noqa: E712
     assert joined.loc[0, "station_id_prep"] == "STN-01"
     assert joined.loc[0, "station_id_packing"] == "STN-99"
 
@@ -101,7 +104,7 @@ def test_join_against_real_mock_data():
     joined = join_prep_and_packing(prep, packing)
 
     unique_order_count = prep_raw["order_id"].nunique()
-    assert len(joined) == unique_order_count
+    assert len(joined) == unique_order_count  # one row per unique order
     assert "prep_duration_minutes" in joined.columns
     assert "accuracy_flag" in joined.columns
     assert "accuracy_valid" in joined.columns

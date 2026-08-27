@@ -7,8 +7,9 @@ import pytest
 from src.ingestion.packing_audits import EXPECTED_COLUMNS, read_packing_audits
 from src.ingestion.validation import MissingColumnsError
 
+# scripts/ isn't a package -- see tests/test_generate_mock_data.py for why.
 sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
-from generate_mock_data import (
+from generate_mock_data import (  # noqa: E402
     build_packing_audits,
     build_prep_logs,
     build_workflow_reference,
@@ -66,6 +67,9 @@ def test_read_packing_audits_raises_on_empty_file(tmp_path):
 
 
 def test_read_packing_audits_does_not_silently_drop_known_bad_rows(tmp_path):
+    # Reading is structural validation only -- known missing accuracy_flag
+    # values should still be present after read_packing_audits(), since
+    # cleaning them is out of scope for this reader.
     path = _write_mock_packing_audits(tmp_path, num_orders=200)
 
     df = read_packing_audits(path)
