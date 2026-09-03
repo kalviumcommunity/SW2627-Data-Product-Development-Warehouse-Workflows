@@ -66,6 +66,103 @@ Individual readers are still available directly if needed:
 from src.ingestion import read_prep_logs, read_packing_audits, read_complaints, read_workflow_reference
 ```
 
+## Cleaning
+
+`src/processing/` turns validated-but-raw data into something analysis-
+ready. Cleaning never drops rows — it flags problems (e.g. a timestamp
+that couldn't be parsed) so later stages can decide how to handle them,
+rather than silently losing data.
+
+Implemented so far:
+
+- `clean_prep_logs()` — parses timestamps, computes prep duration, flags
+  missing/malformed timestamps and duplicate `order_id`s
+- `clean_packing_audits()` — flags missing/unrecognized `accuracy_flag`
+  values via an `accuracy_valid` column
+
+```python
+from src.ingestion import read_prep_logs, read_packing_audits
+from src.processing import clean_prep_logs, clean_packing_audits
+
+prep_clean = clean_prep_logs(read_prep_logs("data/raw/prep_logs.csv"))
+packing_clean = clean_packing_audits(read_packing_audits("data/raw/packing_audits.csv"))
+```
+
+## Joining
+
+`src/processing/join_prep_and_packing.py` combines cleaned `prep_logs`
+and `packing_audits` into one order-level table. Expects already-cleaned
+inputs — joining and cleaning are separate concerns.
+
+Design notes:
+- Rows flagged as duplicate `order_id`s are excluded before joining
+  (only the first-seen row per order is kept), so a duplicate key
+  doesn't fan out and double-count that order.
+- It's a left join from `prep_logs` — every prepped order appears in the
+  result, even if it has no matching packing audit (shown as missing
+  values in the packing columns, not a dropped row).
+- Both sources have a `station_id` column. They should always agree, but
+  if they don't, that's surfaced via a `station_id_mismatch` flag rather
+  than silently picked one way.
+
+```python
+from src.processing import join_prep_and_packing
+
+joined = join_prep_and_packing(prep_clean, packing_clean)
+```
+
+## Full combined table
+
+`src/processing/build_combined_table.py` produces the final order-level
+table the analytics stage will query — `prep_logs` + `packing_audits`
+(joined above) with `workflow_reference` and `complaints` joined in on
+top.
+
+Design notes:
+- `complaints.csv` is one-row-per-complaint, so it's aggregated to one
+  row per order first (`aggregate_complaints_by_order()`) — orders with
+  no complaints get `complaint_count = 0` and `complaint_types = ""`,
+  not a missing value.
+- Joins to `workflow_reference` on the prep side's station (the
+  canonical one). A station with no match in `workflow_reference` (like
+  the orphaned station seeded in mock data) isn't an error — it's kept
+  and flagged via `workflow_found = False`.
+
+```python
+from src.ingestion import read_all_sources
+from src.processing import clean_prep_logs, clean_packing_audits, build_combined_table
+
+sources = read_all_sources("data/raw")
+prep_clean = clean_prep_logs(sources["prep_logs"])
+packing_clean = clean_packing_audits(sources["packing_audits"])
+
+combined = build_combined_table(
+    prep_clean, packing_clean, sources["complaints"], sources["workflow_reference"]
+)
+```
+
+## Analytics
+
+`src/analytics/` turns the combined table into the metrics operations
+leads actually want: complaint counts and failure rate, by workflow.
+
+Implemented so far: `complaints_and_failure_rate_by_workflow()`.
+
+Design note: failure rate is defined as *orders with at least one
+complaint ÷ total orders* — not raw complaint count ÷ orders, since an
+order with two complaints is still one failed order, not two. Raw
+complaint count is still reported alongside for visibility. Orders with
+no workflow match are grouped into an explicit "Unknown" bucket rather
+than dropped.
+
+```python
+from src.analytics import complaints_and_failure_rate_by_workflow
+
+result = complaints_and_failure_rate_by_workflow(combined)
+# columns: workflow_name, total_orders, orders_with_complaint,
+#          total_complaints, failure_rate — sorted worst-first
+```
+
 ## Generating mock data
 
 Real warehouse export data isn't available for this project, so use the
@@ -90,6 +187,8 @@ This creates `data/processed/warehouse.db` (gitignored) using the DDL in
 This project runs entirely on generated mock data
 there is no real warehouse data source. Raw-data schema is in place
 (`workflow_reference`, `prep_logs`, `packing_audits`, `complaints`), CI
-runs the test suite on every push/PR, and the ingestion layer is complete
-with readers for all four raw sources plus a consolidated
-`read_all_sources()` entry point.
+runs the test suite on every push/PR, the full data pipeline (ingest →
+clean → join all four sources) produces one combined order-level table
+via `build_combined_table()`, and analytics now calculates failure rate
+by workflow via `complaints_and_failure_rate_by_workflow()`. Next up:
+the same breakdown by station, and exposing this for the dashboard.

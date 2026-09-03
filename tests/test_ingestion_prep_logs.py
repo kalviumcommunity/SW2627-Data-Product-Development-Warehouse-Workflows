@@ -7,8 +7,9 @@ import pytest
 from src.ingestion.prep_logs import EXPECTED_COLUMNS, read_prep_logs
 from src.ingestion.validation import MissingColumnsError, validate_columns
 
+# scripts/ isn't a package -- see tests/test_generate_mock_data.py for why.
 sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
-from generate_mock_data import build_prep_logs, build_workflow_reference, write_csv
+from generate_mock_data import build_prep_logs, build_workflow_reference, write_csv  # noqa: E402
 
 
 def _write_mock_prep_logs(tmp_path, num_orders=200, seed=1) -> Path:
@@ -60,6 +61,10 @@ def test_read_prep_logs_raises_on_empty_file(tmp_path):
 
 
 def test_read_prep_logs_does_not_silently_drop_known_bad_rows(tmp_path):
+    # Reading is structural validation only -- known mock-data issues
+    # (missing prep_end, malformed timestamp, duplicate order_id, orphaned
+    # station_id) should still be present after read_prep_logs(), since
+    # cleaning them is out of scope for this PR (PRD 6.2, later).
     path = _write_mock_prep_logs(tmp_path, num_orders=200)
 
     df = read_prep_logs(path)
@@ -72,13 +77,13 @@ def test_read_prep_logs_does_not_silently_drop_known_bad_rows(tmp_path):
 def test_validate_columns_accepts_reordered_columns():
     df = pd.DataFrame(columns=["prep_end", "order_id", "prep_start", "station_id"])
 
-    validate_columns(df, EXPECTED_COLUMNS, "prep_logs.csv")
+    validate_columns(df, EXPECTED_COLUMNS, "prep_logs.csv")  # should not raise
 
 
 def test_validate_columns_ignores_extra_columns():
     df = pd.DataFrame(columns=[*EXPECTED_COLUMNS, "some_new_upstream_column"])
 
-    validate_columns(df, EXPECTED_COLUMNS, "prep_logs.csv")
+    validate_columns(df, EXPECTED_COLUMNS, "prep_logs.csv")  # should not raise
 
 
 def test_missing_columns_error_message_is_informative():
